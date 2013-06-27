@@ -1,0 +1,35 @@
+@(existingUsers: List[models.User], usernamerForm: Form[String])
+
+@import helper._
+
+@main("Usernamer") {
+  <ul>
+    @existingUsers.map { user =>
+      <li>
+        <dl>
+          <dt>username</dt>
+          <dd>@user.username</dd>
+
+          <dt>deviceId</dt>
+          <dd>@user.deviceId.getOrElse("None")</dd>
+
+          <dt>deviceType</dt>
+          <dd>@user.deviceType.getOrElse("None")</dd>
+        </dl>
+      </li>
+    }
+  </ul>
+
+  @form(routes.Application.nameuser) {
+    @inputText(usernamerForm("username"))
+  }
+  <!--
+  <form method="post">
+    <label>
+      Username
+      <input name="username" />
+    </label>
+  </form>
+-->
+    <!-- TODO: device id/type, could just hardcode here or detect UA on server or something? -->
+}
