@@ -13,25 +13,30 @@ import reactivemongo.api._
 
 import play.api.Play.current
 
-case class User(
+class User(
   // id: Option[BSONObjectID],
-  username: String,
-  deviceId: Option[String] = None,
-  deviceType: Option[String] = None
-)
+  val username: String,
+  val deviceId: Option[String] = None,
+  val deviceType: Option[String] = None
+) {
+  /**
+   * Persist the User in the db.
+   */
+  // FIXME: Should not leak the storage mechanism here.
+  def save: Future[reactivemongo.core.commands.LastError] = {
+    // TODO: Validate that username is not duplicate.
+    User.userCollection.save(Json.obj(
+      "username" -> this.username
+    ))
+  }
 
-// TODO? Use Reads? Maybe like this?
-// implicit object UserReads extends Reads[User] {
-//   def read(jsValue: JsValue) =
-//     User(
-//       (jsObject \ "username").as[String],
-//       (jsObject \ "deviceId").asOpt[String],
-//       (jsObject \ "deviceType").asOpt[String]
-//     )
-// }
+  /**
+   * Get a string representation.
+   */
+  override def toString: String = this.username
+}
 
 object User {
-
   /**
    * User objects know how to create themselves from JsObjects
    */
@@ -43,24 +48,23 @@ object User {
     )
   }
 
-  // TODO: Move me? Maybe make this a lazy val or something instead?
+  // TODO: Move me? Maybe make this a lazy val or something?
   private def userCollection: JSONCollection = ReactiveMongoPlugin.db.collection[JSONCollection]("users")
 
   /**
    * Get all saved Users.
    */
   def all: Future[List[User]] = {
-
-    // let's do our query
-    // TODO? Is there an nicer way to find all?
+    // TODO? Is there an nicer way to find all? Passing an empty JsObject is 
+    // kind of whack.
     val usersCursor: Cursor[JsObject] = userCollection.find(Json.obj()).cursor[JsObject]
 
     val futureUsersList: Future[List[JsObject]] = usersCursor.toList
 
-    // Convert List elements into actual Users.
-    // I wish this were able to use the implicit conversion for this, but 
-    // despite teh fact that the compiler knows how to convert JsObject => User, it 
-    // doesn't know how to convert List[JsObject] => List[User]
+    // Convert List[JsObject] into List[User].
+    // I wish Scala would automagically use the implicit conversion for this, 
+    // but despite the fact that the compiler knows how to convert JsObject => 
+    // User, it doesn't know how to convert List[JsObject] => List[User].
     futureUsersList.map { _.map { User.fromJsObject } }
   }
 }

@@ -17,7 +17,7 @@ object Application extends Controller {
   /**
    * Allows user to enter a username.
    */
-  def usernamer = Action {
+  def usernamer = Action { implicit request =>
     Async {
       User.all.map { users =>
         Ok(views.html.usernamer(users, usernamerForm))
@@ -29,16 +29,21 @@ object Application extends Controller {
    * Attempts to add a new username.
    */
   def nameuser = Action { implicit request =>
-    usernamerForm.bindFromRequest.fold(
-      errors => Async {
-        User.all.map { users =>
-          BadRequest(views.html.usernamer(users, errors))
+    Async {
+      usernamerForm.bindFromRequest.fold(
+        usernamerFormWithErrors => User.all.map { users =>
+          BadRequest(views.html.usernamer(users, usernamerFormWithErrors))
+        },
+        username => {
+          val newUser: User = new User(username)
+          newUser.save.map(lastError => {
+            // TODO: Handle errors.
+            Redirect(routes.Application.usernamer).flashing(
+              "success" -> "Added new user '%s'.".format(newUser)
+            )
+          })
         }
-      },
-      username => {
-        // TODO: new User(username).
-        new Status(204) // "No Content"
-      }
-    )
+      )
+    }
   }
 }
