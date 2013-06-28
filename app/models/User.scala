@@ -1,12 +1,17 @@
 package models
 
-/* TODO:
-  see http://stephane.godbillon.com/2012/10/18/writing-a-simple-app-with-reactivemongo-and-play-framework-pt-1.html#configuring_sbt
-  most of that seems out of date? why are they dealing with BSON crap directly instead of using the json magic?
-*/
+import scala.concurrent.Future
+
+import play.api.libs.concurrent.Execution.Implicits._
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
-import reactivemongo.bson._
+
+import play.modules.reactivemongo._
+import play.modules.reactivemongo.json.collection.JSONCollection
+
+import reactivemongo.api._
+
+import play.api.Play.current
 
 case class User(
   // id: Option[BSONObjectID],
@@ -26,8 +31,11 @@ case class User(
 // }
 
 object User {
+
+  /**
+   * User objects know how to create themselves from JsObjects
+   */
   implicit def fromJsObject(jsObject: JsObject): User = {
-    // TODO: Convert the json object to a User.
     new User(
       (jsObject \ "username").as[String],
       (jsObject \ "deviceId").asOpt[String],
@@ -35,32 +43,24 @@ object User {
     )
   }
 
-  def all(): List[User] = Nil
-  // implicit object ArticleBSONReader extends BSONReader[Article] {
-  //   def fromBSON(document: BSONDocument) :Article = {
-  //     val doc = document.toTraversable
-  //     Article(
-  //       doc.getAs[BSONObjectID]("_id"),
-  //       doc.getAs[BSONString]("title").get.value,
-  //       doc.getAs[BSONString]("content").get.value,
-  //       doc.getAs[BSONString]("publisher").get.value,
-  //       doc.getAs[BSONDateTime]("creationDate").map(dt => new DateTime(dt.value)),
-  //       doc.getAs[BSONDateTime]("updateDate").map(dt => new DateTime(dt.value))
-  //     )
-  //   }
-  // }
-  // implicit object ArticleBSONWriter extends BSONWriter[Article] {
-  //   def toBSON(article: Article) = {
-  //     val bson = BSONDocument(
-  //       "_id" -> article.id.getOrElse(BSONObjectID.generate),
-  //       "title" -> BSONString(article.title),
-  //       "content" -> BSONString(article.content),
-  //       "publisher" -> BSONString(article.publisher))
-  //     if(article.creationDate.isDefined)
-  //       bson += "creationDate" -> BSONDateTime(article.creationDate.get.getMillis)
-  //     if(article.updateDate.isDefined)
-  //       bson += "updateDate" -> BSONDateTime(article.updateDate.get.getMillis)
-  //     bson
-  //   }
-  // }
+  // TODO: Move me? Maybe make this a lazy val or something instead?
+  private def userCollection: JSONCollection = ReactiveMongoPlugin.db.collection[JSONCollection]("users")
+
+  /**
+   * Get all saved Users.
+   */
+  def all: Future[List[User]] = {
+
+    // let's do our query
+    // TODO? Is there an nicer way to find all?
+    val usersCursor: Cursor[JsObject] = userCollection.find(Json.obj()).cursor[JsObject]
+
+    val futureUsersList: Future[List[JsObject]] = usersCursor.toList
+
+    // Convert List elements into actual Users.
+    // I wish this were able to use the implicit conversion for this, but 
+    // despite teh fact that the compiler knows how to convert JsObject => User, it 
+    // doesn't know how to convert List[JsObject] => List[User]
+    futureUsersList.map { _.map { User.fromJsObject } }
+  }
 }
