@@ -10,25 +10,40 @@ import play.modules.reactivemongo._
 import play.modules.reactivemongo.json.collection.JSONCollection
 
 import reactivemongo.api._
+import reactivemongo.api.indexes._
 
 import play.api.Play.current
 
-class User(
+case class User(
   // id: Option[BSONObjectID],
-  val username: String,
-  val deviceId: Option[String] = None,
-  val deviceType: Option[String] = None
+  username: String,
+  deviceId: Option[String] = None,
+  deviceType: Option[String] = None
 ) {
   /**
    * Persist the User in the db.
    */
   // FIXME: Should not leak the storage mechanism here.
   def save: Future[reactivemongo.core.commands.LastError] = {
-    // TODO: Validate that username is not duplicate.
-    User.userCollection.save(Json.obj(
-      "username" -> this.username
-    ))
+    // Index usernames and do not allow duplicates.
+    User.collection.indexesManager.ensure(
+      Index(List("username" -> IndexType.Ascending), unique = true)
+    )
+
+    User.collection.save(Json.toJson(this))
   }
+
+  /**
+   * Check if a User already exists in persistent storage.
+   */
+   def exists: Future[Boolean] = {
+    // Only check username, since that should be a unique identifier (users 
+    // with the same username but different device are considered to be the 
+    // same user).
+    User.findOne(Map(
+      "username" -> Some(this.username)
+    )).map(optionalUser => optionalUser.nonEmpty)
+   }
 
   /**
    * Get a string representation.
@@ -36,35 +51,61 @@ class User(
   override def toString: String = this.username
 }
 
-object User {
-  /**
-   * User objects know how to create themselves from JsObjects
-   */
-  implicit def fromJsObject(jsObject: JsObject): User = {
-    new User(
-      (jsObject \ "username").as[String],
-      (jsObject \ "deviceId").asOpt[String],
-      (jsObject \ "deviceType").asOpt[String]
-    )
-  }
 
-  // TODO: Move me? Maybe make this a lazy val or something?
-  private def userCollection: JSONCollection = ReactiveMongoPlugin.db.collection[JSONCollection]("users")
+object User {
+  // TODO: Maybe make this a lazy val or something?
+  private def collection: JSONCollection = ReactiveMongoPlugin.db.collection[JSONCollection]("users")
+
+  /**
+   * Create a JSON formatter for User models.
+   */
+  implicit val format: Format[User] = (
+    //(__ \ "id").formatNullable[BSONObjectID] and
+    (__ \ "username").format[String] and
+    (__ \ "deviceId").formatNullable[String] and
+    (__ \ "deviceType").formatNullable[String]
+  )(User.apply _, unlift(User.unapply))
 
   /**
    * Get all saved Users.
    */
   def all: Future[List[User]] = {
-    // TODO? Is there an nicer way to find all? Passing an empty JsObject is 
-    // kind of whack.
-    val usersCursor: Cursor[JsObject] = userCollection.find(Json.obj()).cursor[JsObject]
+    this.findAll()
+  }
 
-    val futureUsersList: Future[List[JsObject]] = usersCursor.toList
+  /**
+   * Find a (future) List of Users based on constraints.
+   */
+  // FIXME: It'd be nice to make constraints be Map[String, Any] or something 
+  // else more general, but I think I need to make my own serializer:
+  // http://stackoverflow.com/questions/14467689/scala-to-json-in-play-framework-2-1
+  // TODO: Also look into using tuples like Json.obj() for prettier calling.
+  // Actually I can maybe solve this and the above problem by accepting tuples 
+  // and just forwarding them along to Json.obj() instead of Json.toJson().
+  def findAll(constraints: Map[String, Option[String]] = Map()): Future[List[User]] = {
+    val usersCursor: Cursor[JsObject] = collection.find(
+      Json.toJson(constraints)
+    ).cursor[JsObject]
 
-    // Convert List[JsObject] into List[User].
-    // I wish Scala would automagically use the implicit conversion for this, 
-    // but despite the fact that the compiler knows how to convert JsObject => 
-    // User, it doesn't know how to convert List[JsObject] => List[User].
-    futureUsersList.map { _.map { User.fromJsObject } }
+    val futureJsList: Future[List[JsObject]] = usersCursor.toList
+
+    // Convert Future[List[JsObject]] into Future[List[User]].
+    futureJsList.map({ jsList =>
+      jsList.map(_.as[User])
+    })
+  }
+
+  /**
+   * Find a (future) single User based on constraints.
+   */
+  def findOne(constraints: Map[String, Option[String]] = Map()): Future[Option[User]] = {
+    val futureJsOption: Future[Option[JsObject]] = collection.find(
+      Json.toJson(constraints)
+    ).one[JsObject]
+
+    // Convert Future[Option[JsObject]] into Future[Option[User]].
+    futureJsOption.map({ jsOption =>
+      jsOption.map(_.as[User])
+    })
   }
 }

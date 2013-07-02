@@ -1,5 +1,8 @@
 package controllers
 
+import scala.concurrent._
+import scala.concurrent.duration._
+
 import play.api._
 import play.api.mvc._
 import play.api.data._
@@ -11,22 +14,26 @@ import models.User
 object Application extends Controller {
 
   val usernamerForm = Form(
-    "username" -> nonEmptyText
+    "username" -> nonEmptyText.verifying("Username is already taken", { username =>
+      // Sadly we need to block here since .verifying() needs a Boolean and not 
+      // a Future.
+      Await.result(new User(username).exists, Duration.Inf) == false
+    })
   )
 
   /**
-   * Allows user to enter a username.
+   * Allow user to enter a username.
    */
   def usernamer = Action { implicit request =>
     Async {
-      User.all.map { users =>
+      User.all.map({ users =>
         Ok(views.html.usernamer(users, usernamerForm))
-      }
+      })
     }
   }
 
   /**
-   * Attempts to add a new username.
+   * Attempt to add a new username.
    */
   def nameuser = Action { implicit request =>
     Async {
