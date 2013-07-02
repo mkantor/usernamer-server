@@ -16,5 +16,6 @@ dist
 
 .DS_Store
 .ensime
+.ensime_session
 .ensime_lucene/
 .vagrant/
