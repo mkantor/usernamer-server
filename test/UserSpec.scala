@@ -1,7 +1,5 @@
 package test
 
-import scala.concurrent._
-import scala.concurrent.duration._
 import scala.util.Random
 
 import play.api.test._
@@ -81,8 +79,8 @@ class UserSpec extends Specification {
         Some(s"test-device-id-$id"),
         Some(s"test-device-type-$id")
       )
-      Await.result(savedUser.save, Duration.Inf)
-      val saved: Boolean = Await.result(savedUser.exists, Duration.Inf)
+      await(savedUser.save)
+      val saved: Boolean = await(savedUser.exists)
 
       saved must equalTo(true)
     }
@@ -95,7 +93,7 @@ class UserSpec extends Specification {
         Some(s"test-device-id-$id"),
         Some(s"test-device-type-$id")
       )
-      val saved: Boolean = Await.result(unsavedUser.exists, Duration.Inf)
+      val saved: Boolean = await(unsavedUser.exists)
 
       saved must equalTo(false)
     }
@@ -108,17 +106,17 @@ class UserSpec extends Specification {
         Some(s"test-device-id-$id"),
         Some(s"test-device-type-$id")
       )
-      Await.result(savedUser.save, Duration.Inf)
+      await(savedUser.save)
 
-      val foundUser1: User = Await.result(User.findOne(Map(
+      val foundUser1: User = await(User.findOne(Map(
         "username" -> Some(savedUser.username)
-      )), Duration.Inf).get
+      ))).get
 
-      val foundUser2: User = Await.result(User.findOne(Map(
+      val foundUser2: User = await(User.findOne(Map(
         "username" -> Some(savedUser.username),
         "deviceId" -> savedUser.deviceId,
         "deviceType" -> savedUser.deviceType
-      )), Duration.Inf).get
+      ))).get
 
       savedUser must equalTo(foundUser1)
       savedUser must equalTo(foundUser2)
@@ -137,12 +135,12 @@ class UserSpec extends Specification {
         s"test-username-$id2", 
         Some(findableDeviceId)
       )
-      Await.result(testUser1.save, Duration.Inf)
-      Await.result(testUser2.save, Duration.Inf)
+      await(testUser1.save)
+      await(testUser2.save)
 
-      Await.result(User.findAll(Map(
+      await(User.findAll(Map(
         "deviceId" -> Some(findableDeviceId)
-      )), Duration.Inf) must equalTo(List(testUser1, testUser2))
+      ))) must equalTo(List(testUser1, testUser2))
     }
 
 
@@ -151,9 +149,9 @@ class UserSpec extends Specification {
       val testUser1: User = new User(sameUsername, Some("one"))
       val testUser2: User = new User(sameUsername, Some("two"))
 
-      Await.result(testUser1.save, Duration.Inf)
+      await(testUser1.save)
 
-      Await.result(testUser2.save, Duration.Inf) must throwA[DatabaseException]
+      await(testUser2.save) must throwA[DatabaseException]
     }
   }
 }
