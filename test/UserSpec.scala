@@ -10,6 +10,7 @@ import play.api.libs.json._
 import play.api.libs.concurrent.Execution.Implicits._
 
 import org.specs2.mutable._
+import reactivemongo.core.errors.DatabaseException
 
 import models.User
 import test.support._
@@ -121,6 +122,38 @@ class UserSpec extends Specification {
 
       savedUser must equalTo(foundUser1)
       savedUser must equalTo(foundUser2)
+    }
+
+
+    "be findable along with other users" in new WithFakeUsernamerApplication {
+      val id1: String = getId
+      val id2: String = getId
+      val findableDeviceId = "findable"
+      val testUser1: User = new User(
+        s"test-username-$id1",
+        Some(findableDeviceId)
+      )
+      val testUser2: User = new User(
+        s"test-username-$id2", 
+        Some(findableDeviceId)
+      )
+      Await.result(testUser1.save, Duration.Inf)
+      Await.result(testUser2.save, Duration.Inf)
+
+      Await.result(User.findAll(Map(
+        "deviceId" -> Some(findableDeviceId)
+      )), Duration.Inf) must equalTo(List(testUser1, testUser2))
+    }
+
+
+    "disallow duplicate usernames" in new WithFakeUsernamerApplication {
+      val sameUsername: String = s"test-username-${getId}"
+      val testUser1: User = new User(sameUsername, Some("one"))
+      val testUser2: User = new User(sameUsername, Some("two"))
+
+      Await.result(testUser1.save, Duration.Inf)
+
+      Await.result(testUser2.save, Duration.Inf) must throwA[DatabaseException]
     }
   }
 }
