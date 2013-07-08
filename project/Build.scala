@@ -9,7 +9,7 @@ object ApplicationBuild extends Build {
 
   val appDependencies = Seq(
     "org.reactivemongo" %% "play2-reactivemongo" % "0.9",
-    "info.schleichardt" %% "play-embed-mongo" % "0.2" % "test"
+    "info.schleichardt" %% "play-embed-mongo" % "0.2"
   )
 
   val main = play.Project(appName, appVersion, appDependencies).settings(
