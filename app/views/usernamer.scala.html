@@ -1,9 +1,11 @@
-@(existingUsers: List[models.User], usernamerForm: Form[String])(implicit flash: Flash)
+@(existingUsers: List[models.User], usernamerForm: Form[String], message: String = "")
 
 @import helper._
 
 @main("Usernamer") {
-  @flash.get("success")
+  @if(message) {
+    <p>@message</p>
+  }
 
   <ul>
     @existingUsers.map { user =>
@@ -22,7 +24,7 @@
     }
   </ul>
 
-  @form(routes.Application.nameuser) {
+  @form(routes.User.create) {
     @inputText(usernamerForm("username"))
     @*
       TODO: Device id/type. Could just hardcode here or detect UA on server or 

@@ -13,7 +13,7 @@ import reactivemongo.core.errors.DatabaseException
 import models.User
 import test.support._
 
-class UserSpec extends Specification {
+class UserModelSpec extends Specification {
 
   /**
    * This will usually return non-ASCII characters.

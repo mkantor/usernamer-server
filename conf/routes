@@ -2,5 +2,6 @@
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
 
-GET     /                           controllers.Application.usernamer
-POST    /                           controllers.Application.nameuser
+GET     /                           controllers.Application.index
+GET     /users                      controllers.User.index
+POST    /users                      controllers.User.create
