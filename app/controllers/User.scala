@@ -9,8 +9,11 @@ import play.api.data._
 import play.api.data.validation._
 import play.api.data.Forms._
 import play.api.libs.concurrent.Execution.Implicits._
+import play.api.i18n._
 
 object User extends Controller {
+
+  val AcceptsPlaintext = Accepting("text/plain")
 
   val userForm: Form[models.User] = Form(
     mapping(
@@ -51,24 +54,39 @@ object User extends Controller {
       userForm.bindFromRequest.fold(
         hasErrors = { userFormWithErrors =>
           // Respond appropriately based on the nature of the error(s).
-
           // FIXME: This is a really lame way to determine the error condition. 
           // Ideally I'd have a separate type of FormError or somehow gain 
           // access to the Constraint to check its type.
           val usernameError = userFormWithErrors.error("username").get
+          var statusCode: Int = 500
+          var simpleError: String = ""
+
+          // If the username is already taken, make sure that error message is 
+          // front and center.
           if(usernameError.isInstanceOf[FormError] && usernameError.message == "Username is already taken") {
-            models.User.all.map { users =>
-              Conflict(views.html.usernamer(users, userFormWithErrors))
-            }
+            statusCode = CONFLICT
+            simpleError = usernameError.message
           } else {
-            models.User.all.map { users =>
-              BadRequest(views.html.usernamer(users, userFormWithErrors))
+            statusCode = BAD_REQUEST
+            // If there are multiple errors, whichever one Play decides to put 
+            // first will be used.
+            simpleError = userFormWithErrors.errors(0).message
+          }
+
+          // FIXME: This .map is unnecessary work for the AcceptsPlaintext and 
+          // Accepts.Json cases.
+          models.User.all.map { users =>
+            render {
+              case Accepts.Html() => new Status(statusCode)(views.html.usernamer(users, userFormWithErrors))
+              case Accepts.Json() => new Status(statusCode)(userFormWithErrors.errorsAsJson)
+              case AcceptsPlaintext() => new Status(statusCode)(Messages(simpleError))
             }
           }
         },
         success = { newUser =>
           newUser.save.map(lastError => Async {
             // TODO: Handle errors.
+            // TODO: Content negotiation.
             // TODO: If I make a resource for individual users (/users/:username) 
             // then make this issue a 201 Created response with a Location 
             // header pointing to the new user resource. See 
