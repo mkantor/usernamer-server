@@ -6,18 +6,31 @@ import scala.concurrent.duration._
 import play.api._
 import play.api.mvc._
 import play.api.data._
+import play.api.data.validation._
 import play.api.data.Forms._
 import play.api.libs.concurrent.Execution.Implicits._
 
 object User extends Controller {
 
-  val userForm = Form(
-    "username" -> nonEmptyText.verifying("Username is already taken", { username =>
-      // Sadly we need to block here since .verifying() needs a Boolean and not 
-      // a Future.
-      Await.result(new models.User(username).exists, Duration.Inf) == false
-    })
+  val userForm: Form[models.User] = Form(
+    mapping(
+      "username" -> nonEmptyText.verifying(uniqueUsername)
+    )(
+      (username) => models.User(username, None, None)
+    )(
+      (user: models.User) => Some(user.username)
+    )
   )
+
+  private def uniqueUsername = Constraint[String]("Username must be unique") { username =>
+    val proposedUser: models.User = new models.User(username)
+    // Sadly we need to block here since this can't return a Future.
+    if(Await.result(proposedUser.exists, Duration.Inf)) {
+      Invalid(ValidationError("Username is already taken"))
+    } else {
+      Valid
+    }
+  }
 
   /**
    * Allow user to enter a username.
@@ -36,11 +49,24 @@ object User extends Controller {
   def create = Action { implicit request =>
     Async {
       userForm.bindFromRequest.fold(
-        userFormWithErrors => models.User.all.map { users =>
-          BadRequest(views.html.usernamer(users, userFormWithErrors))
+        hasErrors = { userFormWithErrors =>
+          // Respond appropriately based on the nature of the error(s).
+
+          // FIXME: This is a really lame way to determine the error condition. 
+          // Ideally I'd have a separate type of FormError or somehow gain 
+          // access to the Constraint to check its type.
+          val usernameError = userFormWithErrors.error("username").get
+          if(usernameError.isInstanceOf[FormError] && usernameError.message == "Username is already taken") {
+            models.User.all.map { users =>
+              Conflict(views.html.usernamer(users, userFormWithErrors))
+            }
+          } else {
+            models.User.all.map { users =>
+              BadRequest(views.html.usernamer(users, userFormWithErrors))
+            }
+          }
         },
-        username => {
-          val newUser: models.User = new models.User(username)
+        success = { newUser =>
           newUser.save.map(lastError => Async {
             // TODO: Handle errors.
             // TODO: If I make a resource for individual users (/users/:username) 
