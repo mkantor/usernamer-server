@@ -26,9 +26,8 @@
 
   @form(routes.User.create) {
     @inputText(usernamerForm("username"))
-    @*
-      TODO: Device id/type. Could just hardcode here or detect UA on server or 
-      something?
-    *@
+    @inputText(usernamerForm("deviceType"))
+    @inputText(usernamerForm("deviceId"))
+    <button type="submit">Add User</button>
   }
 }

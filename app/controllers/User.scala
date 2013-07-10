@@ -18,11 +18,13 @@ object User extends Controller {
 
   val userForm: Form[models.User] = Form(
     mapping(
-      "username" -> nonEmptyText.verifying(uniqueUsername)
+      "username" -> nonEmptyText.verifying(uniqueUsername),
+      "deviceId" -> optional(text),
+      "deviceType" -> optional(text)
     )(
-      (username) => models.User(username, None, None)
+      (username, deviceId, deviceType) => models.User(username, deviceId, deviceType)
     )(
-      (user: models.User) => Some(user.username)
+      (user: models.User) => Some(user.username, user.deviceId, user.deviceType)
     )
   )
 
