@@ -8,6 +8,7 @@ import play.api.mvc._
 import play.api.data._
 import play.api.data.validation._
 import play.api.data.Forms._
+import play.api.libs.json._
 import play.api.libs.concurrent.Execution.Implicits._
 import play.api.i18n._
 
@@ -41,7 +42,11 @@ object User extends Controller {
   def index = Action { implicit request =>
     Async {
       models.User.all.map({ users =>
-        Ok(views.html.usernamer(users, userForm))
+        render {
+          case Accepts.Html() => Ok(views.html.usernamer(users, userForm))
+          case Accepts.Json() => Ok(Json.toJson(users))
+          case AcceptsPlaintext() => Ok(users.mkString("\n"))
+        }
       })
     }
   }
@@ -86,13 +91,18 @@ object User extends Controller {
         success = { newUser =>
           newUser.save.map(lastError => Async {
             // TODO: Handle errors.
-            // TODO: Content negotiation.
             // TODO: If I make a resource for individual users (/users/:username) 
             // then make this issue a 201 Created response with a Location 
             // header pointing to the new user resource. See 
             // http://tools.ietf.org/html/draft-ietf-httpbis-p2-semantics-21#section-5.3.3
+            // FIXME: This .map is unnecessary work for the AcceptsPlaintext case.
+            val successMessage = "Added new user '%s'.".format(newUser)
             models.User.all.map({ users =>
-              Ok(views.html.usernamer(users, userForm, "Added new user '%s'.".format(newUser)))
+              render {
+                case Accepts.Html() => Ok(views.html.usernamer(users, userForm, successMessage))
+                case Accepts.Json() => Ok(Json.toJson(users))
+                case AcceptsPlaintext() => Ok(Messages(successMessage) + "\n\n" + users.mkString("\n"))
+              }
             })
           })
         }
